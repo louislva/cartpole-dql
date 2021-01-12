@@ -16,6 +16,7 @@ random.seed(1)
 class Hyperparameters:
     REPLAY_BUFFER_SIZE = 10000
     TRAINING_START_STEP = 2500
+    TRAIN_FOR_STEPS = 250000
 
     TRAINING_INTERVAL = 4
     BATCH_SIZE = 16

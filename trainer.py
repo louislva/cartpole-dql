@@ -27,7 +27,6 @@ class Trainer:
             model.parameters(), lr=self.hyper.LEARNING_RATE)
         self.scheduler = optim.lr_scheduler.StepLR(
             self.optimizer, step_size=1, gamma=0.1)
-        print('Learning rate', self.optimizer.param_groups[0]['lr'])
 
         pass
 
@@ -58,13 +57,14 @@ class Trainer:
         self.summary_writer.add_scalar(
             'Learning Rate', self.hyper.LEARNING_RATE, self.n)
 
-        while self.n < 250000:
+        while self.n < self.hyper.TRAIN_FOR_STEPS:
             # EPISODE
             t = 0
 
             # first frame
             observation = self.env.reset()
             done = False
+            rewards = 0
 
             while not done:
                 # STEP
@@ -75,6 +75,7 @@ class Trainer:
                 self.replay_buffer.append(
                     (observation, action, reward, done, post_observation)
                 )
+                rewards += reward
                 observation = post_observation
 
                 t += 1
@@ -82,10 +83,13 @@ class Trainer:
                 self.post_step(self.episode, self.n, t)
 
             self.episode += 1
-            self.post_episode(self.episode, self.n, t)
+            self.post_episode(self.episode, self.n, rewards)
 
     def post_step(self, episode, n, t):
         self.summary_writer.add_scalar('Epsilon', self.epsilon, n)
+
+        if(episode % 100 == 0):
+            self.env.render()
 
         # Only start doing these things when we start training
         if(n >= self.hyper.TRAINING_START_STEP):
@@ -108,20 +112,16 @@ class Trainer:
                 torch.save(self.model.state_dict(), 'models/' + str(n // self.hyper.SAVING_INTERVAL) +
                            '-avg' + str(int(sum(self.last_100_scores) / len(self.last_100_scores))))
 
-    def post_episode(self, episode, n, t):
-        self.summary_writer.add_scalar('Score', t, n)
+    def post_episode(self, episode, n, rewards):
+        self.summary_writer.add_scalar('Score', rewards, n)
 
-        self.last_100_scores.append(t)
+        self.last_100_scores.append(rewards)
         self.summary_writer.add_scalar(
             'Rolling Avg. Score',
             sum(self.last_100_scores) /
             len(self.last_100_scores),
             n
         )
-
-        # PER 100 EPISODES
-        if(episode % 100 == 0):
-            self.env.render()
 
     def train_batch(self):
         replay_buffer = self.replay_buffer
