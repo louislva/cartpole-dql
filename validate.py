@@ -1,16 +1,9 @@
 import random
-from collections import deque
-import os
 
 import gym
 import torch
-from torch import nn, optim
-from torch.utils.tensorboard import SummaryWriter
 
-from misc import train_batch
 from model import Model
-
-EPSILON_MIN = 0.025
 
 
 def validate(model, episodes):
@@ -27,11 +20,8 @@ def validate(model, episodes):
         t = 0
 
         while not done:
-            if(random.random() > EPSILON_MIN):
-                q = model(torch.from_numpy(observation).float())
-                action = q.argmax().item()
-            else:
-                action = random.randrange(2)
+            q = model(torch.from_numpy(observation).float())
+            action = q.argmax().item()
 
             observation, reward, done, info = env.step(action)
 
@@ -47,4 +37,5 @@ if __name__ == "__main__":
                   hidden_layer_size=8, output_size=2)
 
     model.load_state_dict(torch.load('models/pretrained'))
+
     print('Avg. score:', validate(model, 100))
