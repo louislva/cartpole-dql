@@ -16,10 +16,11 @@ random.seed(1)
 
 REPLAY_BUFFER_SIZE = 10000
 TRAINING_START_STEP = 2500
-TRAINING_INTERVAL = 4
 
+TRAINING_INTERVAL = 4
 BATCH_SIZE = 16
 LEARNING_RATE = 0.001
+LEARNING_RATE_STEP = 95000
 DISCOUNT_FACTOR = 0.95
 # EPOCHS = repetitions of the same data = BATCH_SIZE / TRAINING_INTERVAL
 
@@ -40,9 +41,11 @@ def get_epsilon(n, start, period, min_value, repeat_period=None):
 
 def train_loop(model):
     writer = SummaryWriter()
+    writer.add_scalar('Learning Rate', LEARNING_RATE, 0)
 
     replay_buffer = deque(maxlen=REPLAY_BUFFER_SIZE)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)
 
     env = gym.make('CartPole-v0')
 
@@ -80,6 +83,8 @@ def train_loop(model):
             # NON-GAME LOGIC
             if(n >= TRAINING_START_STEP):
                 writer.add_scalar('Epsilon', epsilon, n)
+
+                # PER EPISODE
                 if(done):
                     writer.add_scalar('Score', t, n)
                     rolling_avg_score_deque.append(t)
@@ -90,21 +95,28 @@ def train_loop(model):
                         n
                     )
 
-                # show a preview every 100 episodes
+                # PER 100 EPISODES
                 if(episode % 100 == 0):
                     env.render()
 
-                # train one batch every TRAINING_INTERVAL episodes
+                # PER [LEARNING_RATE_STEP] STEPS
+                if(n % LEARNING_RATE_STEP == 0):
+                    scheduler.step()
+                    writer.add_scalar(
+                        'Learning Rate', LEARNING_RATE * (0.1 ** (n / LEARNING_RATE_STEP)), n)
+
+                # PER [TRAINING_INTERVAL] STEPS
                 if(n % TRAINING_INTERVAL == 0):
                     loss = train_batch(replay_buffer, model,
                                        optimizer, BATCH_SIZE, DISCOUNT_FACTOR)
 
                     writer.add_scalar('Loss', loss, n)
 
+                # PER [SAVING_INTERVAL] STEPS
                 if(n % SAVING_INTERVAL == 0):
                     if(not os.path.isdir('models/')):
                         os.mkdir('models/')
-                    torch.save(model.state_dict, 'models/' + str(n // SAVING_INTERVAL) +
+                    torch.save(model.state_dict(), 'models/' + str(n // SAVING_INTERVAL) +
                                '-avg' + str(int(sum(rolling_avg_score_deque) / len(rolling_avg_score_deque))))
 
     env.close()
