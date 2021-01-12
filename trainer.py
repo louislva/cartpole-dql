@@ -28,8 +28,16 @@ class Trainer:
         self.scheduler = optim.lr_scheduler.StepLR(
             self.optimizer, step_size=1, gamma=0.1)
 
-        pass
+        # current time
+        self.n = 0
+        self.episode = 0
 
+        self.summary_writer.add_scalar(
+            'Learning Rate', self.hyper.LEARNING_RATE, self.n)
+
+    # A property that is always == whatever the current epsilon is supposed to be.
+    # For the unfamiliar: a property is a method that acts like it's a value.
+    # So you'd use self.epsilon, not self.epsilon()
     @property
     def epsilon(self):
         start = self.hyper.EPSILON_START
@@ -50,13 +58,8 @@ class Trainer:
         else:
             return self.env.action_space.sample()
 
+    # Main training loop
     def train(self):
-        self.n = 0
-        self.episode = 0
-
-        self.summary_writer.add_scalar(
-            'Learning Rate', self.hyper.LEARNING_RATE, self.n)
-
         while self.n < self.hyper.TRAIN_FOR_STEPS:
             # EPISODE
             t = 0
@@ -85,6 +88,7 @@ class Trainer:
             self.episode += 1
             self.post_episode(self.episode, self.n, rewards)
 
+    # This function is called after each game step; we use it to log values and to train the network
     def post_step(self, episode, n, t):
         self.summary_writer.add_scalar('Epsilon', self.epsilon, n)
 
@@ -112,6 +116,7 @@ class Trainer:
                 torch.save(self.model.state_dict(), 'models/' + str(n // self.hyper.SAVING_INTERVAL) +
                            '-avg' + str(int(sum(self.last_100_scores) / len(self.last_100_scores))))
 
+    # This is called after each episode. We use it to log things.
     def post_episode(self, episode, n, rewards):
         self.summary_writer.add_scalar('Score', rewards, n)
 
@@ -123,6 +128,8 @@ class Trainer:
             n
         )
 
+    # This samples a batch from the replay_buffer (which is usually the
+    # last 10000 observations) and trains the network to predict Q values.
     def train_batch(self):
         replay_buffer = self.replay_buffer
         model = self.model
@@ -138,10 +145,17 @@ class Trainer:
         not_done_mask = torch.tensor([not x[3] for x in batch])
         post_observation = torch.tensor([x[4] for x in batch]).float()
 
+        # This is to incorporate future rewards. We simply figure out
+        # what the current model thinks is the natural action,
+        # and how big a reward we'd get. Later we multiply this by the DISCOUNT_FACTOR
         post_max_q = model(post_observation).max(dim=1).values
 
+        # Our models Q-value predictions
         y = model(observations).gather(
             1, actions.reshape((-1, 1))).reshape((-1,))
+
+        # Multiply next step Q value by discount factor and mask it by
+        # whether this was the last step in the game (done_mask)
         bellman = rewards + (not_done_mask * post_max_q * discount_factor)
 
         optimizer.zero_grad()

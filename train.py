@@ -1,11 +1,6 @@
 import random
-from collections import deque
-import os
 
 import gym
-import torch
-from torch import nn, optim
-from torch.utils.tensorboard import SummaryWriter
 
 from model import Model
 from trainer import Trainer
@@ -36,6 +31,10 @@ if __name__ == "__main__":
     env = gym.make('CartPole-v0')
     model = Model(input_size=4, hidden_layers=2,
                   hidden_layer_size=8, output_size=2)
+
+    # Trainer is responsible for sampling environment data (trying things)
+    # and updating the weights of the model. It will log to the runs/ directory.
+    # Use Tensorboard to read it.
     trainer = Trainer(model, env, Hyperparameters())
 
     trainer.train()
