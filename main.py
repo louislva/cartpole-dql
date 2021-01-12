@@ -1,5 +1,6 @@
 import random
 from collections import deque
+import os
 
 import gym
 import torch
@@ -26,6 +27,8 @@ EPSILON_START = 1
 EPSILON_DECAY_PERIOD = 10000
 EPSILON_MIN = 0.025
 EPSILON_REPEAT_PERIOD = 35000
+
+SAVING_INTERVAL = 5000
 
 
 def get_epsilon(n, start, period, min_value, repeat_period=None):
@@ -79,7 +82,7 @@ def train_loop(model):
                 writer.add_scalar('Epsilon', epsilon, n)
                 if(done):
                     writer.add_scalar('Score', t, n)
-                    rolling_avg_deque.append(t)
+                    rolling_avg_score_deque.append(t)
                     writer.add_scalar(
                         'Rolling Avg. Score',
                         sum(rolling_avg_score_deque) /
@@ -97,6 +100,12 @@ def train_loop(model):
                                        optimizer, BATCH_SIZE, DISCOUNT_FACTOR)
 
                     writer.add_scalar('Loss', loss, n)
+
+                if(n % SAVING_INTERVAL == 0):
+                    if(not os.path.isdir('models/')):
+                        os.mkdir('models/')
+                    torch.save(model.state_dict, 'models/' + str(n // SAVING_INTERVAL) +
+                               '-avg' + str(int(sum(rolling_avg_score_deque) / len(rolling_avg_score_deque))))
 
     env.close()
 
